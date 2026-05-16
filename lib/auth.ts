@@ -1,26 +1,40 @@
 import { NextAuthOptions } from "next-auth"
-import GoogleProvider from "next-auth/providers/google"
-import { PrismaAdapter } from "@next-auth/prisma-adapter"
+import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "./prisma"
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  session: { strategy: "jwt" },
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    CredentialsProvider({
+      name: "Demo",
+      credentials: {
+        name: { label: "Tu nombre", type: "text" },
+      },
+      async authorize(credentials) {
+        const name = credentials?.name?.trim()
+        if (!name || name.length < 2) return null
+
+        const slug = name.toLowerCase().replace(/[^a-z0-9]/g, "")
+        const email = `${slug}@demo.calendarium.local`
+
+        const user = await prisma.user.upsert({
+          where: { email },
+          update: {},
+          create: { name, email },
+        })
+
+        return { id: user.id, name: user.name, email: user.email }
+      },
     }),
   ],
   callbacks: {
-    session: ({ session, user }) => ({
+    session: ({ session, token }) => ({
       ...session,
       user: {
         ...session.user,
-        id: user.id,
+        id: token.sub!,
       },
     }),
   },
-  pages: {
-    signIn: "/",
-  },
+  pages: { signIn: "/" },
 }
