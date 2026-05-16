@@ -9,13 +9,31 @@ export async function GET(request: NextRequest) {
   const start = searchParams.get("start")
   const end = searchParams.get("end")
 
+  // Return all events that overlap with the requested range:
+  // - Single-day events (no endDate) whose startDate falls within the range
+  // - Multi-day events whose interval overlaps with the range
+  const where =
+    start && end
+      ? {
+          AND: [
+            { startDate: { lte: new Date(end) } },
+            {
+              OR: [
+                { endDate: { gte: new Date(start) } },
+                {
+                  AND: [
+                    { endDate: null },
+                    { startDate: { gte: new Date(start) } },
+                  ],
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+
   const events = await prisma.event.findMany({
-    where: {
-      startDate: {
-        gte: start ? new Date(start) : undefined,
-        lte: end ? new Date(end) : undefined,
-      },
-    },
+    where,
     include: {
       user: {
         select: { id: true, name: true, image: true, email: true },

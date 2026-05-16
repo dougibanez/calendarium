@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { format } from "date-fns"
+import { format, isSameDay, startOfDay } from "date-fns"
 import { es } from "date-fns/locale"
 import { useSession } from "next-auth/react"
 import Image from "next/image"
@@ -21,6 +21,11 @@ export interface CalendarEvent {
   allDay: boolean
   color: string
   user: EventUser
+}
+
+function isMultiDayEvent(event: CalendarEvent): boolean {
+  if (!event.endDate) return false
+  return !isSameDay(startOfDay(new Date(event.startDate)), startOfDay(new Date(event.endDate)))
 }
 
 interface EventModalProps {
@@ -181,19 +186,25 @@ export default function EventModal({
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 space-y-2">
-              <div className="flex items-center gap-2.5 text-sm text-slate-600">
-                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {/* Date range */}
+              <div className="flex items-start gap-2.5 text-sm text-slate-600">
+                <svg className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <span className="capitalize">
-                  {format(
-                    new Date(selectedEvent.startDate),
-                    "EEEE d 'de' MMMM, yyyy",
-                    { locale: es }
-                  )}
-                </span>
+                {isMultiDayEvent(selectedEvent) ? (
+                  <span className="capitalize">
+                    {format(new Date(selectedEvent.startDate), "EEEE d 'de' MMMM", { locale: es })}
+                    {" — "}
+                    {format(new Date(selectedEvent.endDate!), "EEEE d 'de' MMMM, yyyy", { locale: es })}
+                  </span>
+                ) : (
+                  <span className="capitalize">
+                    {format(new Date(selectedEvent.startDate), "EEEE d 'de' MMMM, yyyy", { locale: es })}
+                  </span>
+                )}
               </div>
-              {!selectedEvent.allDay && (
+              {/* Time — only for non-all-day, non-multi-day events */}
+              {!selectedEvent.allDay && !isMultiDayEvent(selectedEvent) && (
                 <div className="flex items-center gap-2.5 text-sm text-slate-600">
                   <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -202,6 +213,19 @@ export default function EventModal({
                     {format(new Date(selectedEvent.startDate), "HH:mm")}
                     {selectedEvent.endDate &&
                       ` — ${format(new Date(selectedEvent.endDate), "HH:mm")}`}
+                  </span>
+                </div>
+              )}
+              {/* Time for multi-day non-all-day events */}
+              {!selectedEvent.allDay && isMultiDayEvent(selectedEvent) && (
+                <div className="flex items-center gap-2.5 text-sm text-slate-600">
+                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>
+                    {format(new Date(selectedEvent.startDate), "HH:mm")}
+                    {" → "}
+                    {selectedEvent.endDate && format(new Date(selectedEvent.endDate), "HH:mm")}
                   </span>
                 </div>
               )}
