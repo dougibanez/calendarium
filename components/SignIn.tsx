@@ -3,7 +3,7 @@
 import { signIn } from "next-auth/react"
 import { useState } from "react"
 
-const DEMO_NAMES = ["Mamá", "Papá", "Sofía", "Lucas"]
+const DEMO_NAMES = ["Caro", "Thomy", "Doug", "Olga"]
 
 export default function SignIn() {
   const [name, setName] = useState("")
