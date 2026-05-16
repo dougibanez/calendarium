@@ -24,10 +24,15 @@ import EventModal, { CalendarEvent } from "./EventModal"
 
 const WEEK_DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 const MAX_LANES = 3
+const LANE_H = 22 // px per lane (20px bar + 2px gap)
+const BAR_TOP_OFFSET = 4 // px from top of cell to first bar
 
 export function isMultiDay(event: CalendarEvent): boolean {
   if (!event.endDate) return false
-  return !isSameDay(startOfDay(new Date(event.startDate)), startOfDay(new Date(event.endDate)))
+  return !isSameDay(
+    startOfDay(new Date(event.startDate)),
+    startOfDay(new Date(event.endDate))
+  )
 }
 
 interface WeekSpan {
@@ -39,35 +44,39 @@ interface WeekSpan {
   lane: number
 }
 
-function getWeekSpans(events: CalendarEvent[], weekStart: Date, weekEnd: Date): WeekSpan[] {
+function getWeekSpans(
+  events: CalendarEvent[],
+  weekStart: Date,
+  weekEnd: Date
+): WeekSpan[] {
   const spans: WeekSpan[] = events
     .filter((ev) => {
       if (!ev.endDate) return false
-      const evStart = startOfDay(new Date(ev.startDate))
-      const evEnd = startOfDay(new Date(ev.endDate))
-      if (isSameDay(evStart, evEnd)) return false
-      return !isAfter(evStart, weekEnd) && !isBefore(evEnd, weekStart)
+      const s = startOfDay(new Date(ev.startDate))
+      const e = startOfDay(new Date(ev.endDate))
+      if (isSameDay(s, e)) return false
+      return !isAfter(s, weekEnd) && !isBefore(e, weekStart)
     })
     .map((ev) => {
-      const evStart = startOfDay(new Date(ev.startDate))
-      const evEnd = startOfDay(new Date(ev.endDate!))
-      const clampedStart = isBefore(evStart, weekStart) ? weekStart : evStart
-      const clampedEnd = isAfter(evEnd, weekEnd) ? weekEnd : evEnd
+      const evS = startOfDay(new Date(ev.startDate))
+      const evE = startOfDay(new Date(ev.endDate!))
+      const cS = isBefore(evS, weekStart) ? weekStart : evS
+      const cE = isAfter(evE, weekEnd) ? weekEnd : evE
       return {
         event: ev,
-        startCol: differenceInDays(clampedStart, weekStart),
-        endCol: differenceInDays(clampedEnd, weekStart),
-        isStart: isSameDay(clampedStart, evStart),
-        isEnd: isSameDay(clampedEnd, evEnd),
+        startCol: differenceInDays(cS, weekStart),
+        endCol: differenceInDays(cE, weekStart),
+        isStart: isSameDay(cS, evS),
+        isEnd: isSameDay(cE, evE),
         lane: -1,
       }
     })
-    .sort((a, b) => {
-      if (a.startCol !== b.startCol) return a.startCol - b.startCol
-      return b.endCol - b.startCol - (a.endCol - a.startCol)
-    })
+    .sort((a, b) =>
+      a.startCol !== b.startCol
+        ? a.startCol - b.startCol
+        : b.endCol - b.startCol - (a.endCol - a.startCol)
+    )
 
-  // Greedy lane assignment
   for (let i = 0; i < spans.length; i++) {
     let lane = 0
     while (lane < MAX_LANES) {
@@ -140,7 +149,6 @@ export default function Calendar() {
     setSelectedEvent(null)
   }
 
-  // Split days into week rows
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)
   const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 })
@@ -158,7 +166,6 @@ export default function Calendar() {
   }
 
   const singleDayEvents = events.filter((ev) => !isMultiDay(ev))
-
   const getDaySingleEvents = (day: Date) =>
     singleDayEvents.filter((ev) => isSameDay(new Date(ev.startDate), day))
 
@@ -225,97 +232,114 @@ export default function Calendar() {
           const numLanes =
             weekSpans.length > 0 ? Math.max(...weekSpans.map((s) => s.lane)) + 1 : 0
 
+          // Space reserved at the top of each cell for multi-day bars
+          const reservedTop =
+            numLanes > 0 ? BAR_TOP_OFFSET + numLanes * LANE_H + 4 : 6
+
           return (
-            <div key={weekIdx}>
-              {/* Multi-day event bars — same grid layout as day cells for column alignment */}
-              {numLanes > 0 && (
-                <div
-                  className="grid grid-cols-7 gap-1 mb-0.5"
-                  style={{ gridTemplateRows: `repeat(${numLanes}, 22px)` }}
-                >
-                  {weekSpans.map((span) => (
-                    <button
-                      key={`${span.event.id}-w${weekIdx}`}
-                      onClick={(e) => openViewModal(e, span.event)}
-                      className={[
-                        "flex items-center px-2 text-xs font-medium text-white truncate",
-                        "hover:opacity-80 transition-opacity focus:outline-none",
-                        span.isStart ? "rounded-l-full pl-2.5" : "rounded-l-none",
-                        span.isEnd ? "rounded-r-full pr-2.5" : "rounded-r-none",
-                      ].join(" ")}
-                      style={{
-                        gridColumn: `${span.startCol + 1} / ${span.endCol + 2}`,
-                        gridRow: span.lane + 1,
-                        backgroundColor: span.event.color,
-                        marginLeft: span.isStart ? 2 : 0,
-                        marginRight: span.isEnd ? 2 : 0,
-                      }}
-                      title={span.event.title}
-                    >
-                      <span className="truncate">{span.event.title}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+            // Week row: position:relative so bars can be absolutely positioned inside
+            <div
+              key={weekIdx}
+              className="relative grid grid-cols-7 rounded-xl overflow-hidden border border-slate-200"
+            >
+              {/* ── Day cells ── */}
+              {week.map((day, i) => {
+                const dayEvents = getDaySingleEvents(day)
+                const inMonth = isSameMonth(day, currentDate)
+                const isCurrentDay = isToday(day)
+                const canCreate = !!session && inMonth
 
-              {/* Day cells */}
-              <div className="grid grid-cols-7 gap-1">
-                {week.map((day) => {
-                  const dayEvents = getDaySingleEvents(day)
-                  const inMonth = isSameMonth(day, currentDate)
-                  const isCurrentDay = isToday(day)
-
-                  return (
+                return (
+                  <div
+                    key={day.toISOString()}
+                    onClick={() => canCreate && openCreateModal(day)}
+                    className={[
+                      "min-h-[88px] px-1.5 pb-1.5 transition-colors",
+                      i > 0 ? "border-l border-slate-100" : "",
+                      isCurrentDay
+                        ? "bg-blue-50/60"
+                        : inMonth
+                        ? canCreate
+                          ? "bg-white hover:bg-blue-50/30 cursor-pointer"
+                          : "bg-white"
+                        : "bg-slate-50/50",
+                    ].join(" ")}
+                    style={{ paddingTop: reservedTop + "px" }}
+                  >
+                    {/* Day number */}
                     <div
-                      key={day.toISOString()}
-                      onClick={() => openCreateModal(day)}
                       className={[
-                        "min-h-[80px] p-1.5 rounded-xl border transition-all",
-                        inMonth
-                          ? session
-                            ? "bg-white border-slate-200 hover:border-blue-300 hover:shadow-sm cursor-pointer"
-                            : "bg-white border-slate-200"
-                          : "bg-slate-50/60 border-transparent",
-                        isCurrentDay ? "border-blue-400 ring-1 ring-blue-400/30" : "",
+                        "w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full",
+                        "text-xs sm:text-sm font-medium mb-1",
+                        isCurrentDay
+                          ? "bg-blue-500 text-white"
+                          : inMonth
+                          ? "text-slate-700"
+                          : "text-slate-300",
                       ].join(" ")}
                     >
-                      <div
-                        className={[
-                          "w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full",
-                          "text-xs sm:text-sm font-medium mb-1",
-                          isCurrentDay
-                            ? "bg-blue-500 text-white"
-                            : inMonth
-                            ? "text-slate-700"
-                            : "text-slate-300",
-                        ].join(" ")}
-                      >
-                        {format(day, "d")}
-                      </div>
-
-                      <div className="space-y-0.5">
-                        {dayEvents.slice(0, 3).map((event) => (
-                          <button
-                            key={event.id}
-                            onClick={(e) => openViewModal(e, event)}
-                            className="w-full text-left text-xs px-1.5 py-0.5 rounded-md text-white truncate transition-opacity hover:opacity-80"
-                            style={{ backgroundColor: event.color }}
-                            title={`${event.title} — ${event.user.name}`}
-                          >
-                            <span className="hidden sm:inline">{event.title}</span>
-                            <span className="sm:hidden">•</span>
-                          </button>
-                        ))}
-                        {dayEvents.length > 3 && (
-                          <p className="text-xs text-slate-400 pl-1">
-                            +{dayEvents.length - 3}
-                          </p>
-                        )}
-                      </div>
+                      {format(day, "d")}
                     </div>
-                  )
-                })}
-              </div>
+
+                    {/* Single-day event pills */}
+                    <div className="space-y-0.5">
+                      {dayEvents.slice(0, 3).map((event) => (
+                        <button
+                          key={event.id}
+                          onClick={(e) => openViewModal(e, event)}
+                          className="w-full text-left text-xs px-1.5 py-0.5 rounded-md text-white truncate hover:opacity-80 transition-opacity"
+                          style={{ backgroundColor: event.color }}
+                          title={`${event.title} — ${event.user.name}`}
+                        >
+                          <span className="hidden sm:inline">{event.title}</span>
+                          <span className="sm:hidden">•</span>
+                        </button>
+                      ))}
+                      {dayEvents.length > 3 && (
+                        <p className="text-xs text-slate-400 pl-1">
+                          +{dayEvents.length - 3}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* ── Multi-day bars ──
+                  Absolutely positioned inside the week row.
+                  left/width use % of the row width (7 equal columns, no gap).
+                  top uses lane index so multiple bars stack without overlap.
+              */}
+              {weekSpans.map((span) => {
+                const leftPct = (span.startCol / 7) * 100
+                const widthPct = ((span.endCol - span.startCol + 1) / 7) * 100
+                const insetPx = 3 // visual breathing room at real start/end
+
+                return (
+                  <button
+                    key={`${span.event.id}-w${weekIdx}`}
+                    onClick={(e) => openViewModal(e, span.event)}
+                    className="absolute flex items-center text-xs font-medium text-white hover:opacity-80 transition-opacity focus:outline-none"
+                    style={{
+                      // Horizontal position
+                      left: `calc(${leftPct}% + ${span.isStart ? insetPx : 0}px)`,
+                      width: `calc(${widthPct}% - ${span.isStart ? insetPx : 0}px - ${span.isEnd ? insetPx : 0}px)`,
+                      // Vertical position inside the reserved zone
+                      top: BAR_TOP_OFFSET + span.lane * LANE_H + "px",
+                      height: "20px",
+                      backgroundColor: span.event.color,
+                      // Round only the real edges of the event
+                      borderTopLeftRadius: span.isStart ? 999 : 2,
+                      borderBottomLeftRadius: span.isStart ? 999 : 2,
+                      borderTopRightRadius: span.isEnd ? 999 : 2,
+                      borderBottomRightRadius: span.isEnd ? 999 : 2,
+                    }}
+                    title={span.event.title}
+                  >
+                    <span className="px-2 truncate leading-none">{span.event.title}</span>
+                  </button>
+                )
+              })}
             </div>
           )
         })}
@@ -324,20 +348,17 @@ export default function Calendar() {
       {/* Participants legend */}
       {events.length > 0 && (
         <div className="mt-6 flex flex-wrap gap-3">
-          {Array.from(new Map(events.map((e) => [e.user.id, e.user])).values()).map(
-            (user) => {
-              const userColor = events.find((e) => e.user.id === user.id)?.color
-              return (
-                <div key={user.id} className="flex items-center gap-1.5">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ backgroundColor: userColor }}
-                  />
-                  <span className="text-xs text-slate-500">{user.name}</span>
-                </div>
-              )
-            }
-          )}
+          {Array.from(
+            new Map(events.map((e) => [e.user.id, e.user])).values()
+          ).map((user) => {
+            const color = events.find((e) => e.user.id === user.id)?.color
+            return (
+              <div key={user.id} className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                <span className="text-xs text-slate-500">{user.name}</span>
+              </div>
+            )
+          })}
         </div>
       )}
 
