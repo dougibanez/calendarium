@@ -1,4 +1,6 @@
-const USER_COLORS = [
+import type { PrismaClient } from "@prisma/client"
+
+export const USER_COLORS = [
   "#3B82F6",
   "#EF4444",
   "#10B981",
@@ -9,10 +11,35 @@ const USER_COLORS = [
   "#F97316",
 ]
 
-export function getUserColor(userId: string): string {
-  let hash = 0
-  for (let i = 0; i < userId.length; i++) {
-    hash = userId.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return USER_COLORS[Math.abs(hash) % USER_COLORS.length]
+/**
+ * Returns the color assigned to a user, assigning a unique one if they don't have one yet.
+ * Guarantees no two users share the same color (up to USER_COLORS.length users).
+ */
+export async function ensureUserColor(
+  userId: string,
+  prisma: PrismaClient
+): Promise<string> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { color: true },
+  })
+
+  if (user?.color) return user.color
+
+  const taken = new Set(
+    (
+      await prisma.user.findMany({
+        where: { id: { not: userId }, color: { not: null } },
+        select: { color: true },
+      })
+    ).map((u) => u.color!)
+  )
+
+  const color =
+    USER_COLORS.find((c) => !taken.has(c)) ??
+    USER_COLORS[taken.size % USER_COLORS.length]
+
+  await prisma.user.update({ where: { id: userId }, data: { color } })
+
+  return color
 }

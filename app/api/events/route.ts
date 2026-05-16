@@ -2,16 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { getUserColor } from "@/lib/userColors"
+import { ensureUserColor } from "@/lib/userColors"
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const start = searchParams.get("start")
   const end = searchParams.get("end")
 
-  // Return all events that overlap with the requested range:
-  // - Single-day events (no endDate) whose startDate falls within the range
-  // - Multi-day events whose interval overlaps with the range
   const where =
     start && end
       ? {
@@ -36,13 +33,42 @@ export async function GET(request: NextRequest) {
     where,
     include: {
       user: {
-        select: { id: true, name: true, image: true, email: true },
+        select: { id: true, name: true, image: true, email: true, color: true },
       },
     },
     orderBy: { startDate: "asc" },
   })
 
-  return NextResponse.json(events)
+  // Ensure every user in the results has a unique color assigned.
+  // This also fixes existing users who ended up with the same color.
+  const userMap = new Map(events.map((e) => [e.user.id, e.user]))
+  const uniqueUsers = Array.from(userMap.values())
+  const usersNeedingColor = uniqueUsers.filter((u) => !u.color)
+
+  if (usersNeedingColor.length > 0) {
+    const taken = new Set(
+      uniqueUsers.map((u) => u.color).filter(Boolean) as string[]
+    )
+    for (const user of usersNeedingColor) {
+      const color = await ensureUserColor(user.id, prisma)
+      taken.add(color)
+      user.color = color
+    }
+  }
+
+  // user.color is the source of truth — override event.color in the response
+  return NextResponse.json(
+    events.map((e) => ({
+      ...e,
+      color: e.user.color ?? e.color,
+      user: {
+        id: e.user.id,
+        name: e.user.name,
+        image: e.user.image,
+        email: e.user.email,
+      },
+    }))
+  )
 }
 
 export async function POST(request: NextRequest) {
@@ -61,7 +87,8 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const color = getUserColor(session.user.id)
+  // Assign a unique color to this user if they don't have one yet
+  const color = await ensureUserColor(session.user.id, prisma)
 
   const event = await prisma.event.create({
     data: {
