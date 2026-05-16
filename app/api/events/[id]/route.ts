@@ -20,13 +20,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 })
   }
 
-  if (event.userId !== session.user.id) {
-    return NextResponse.json(
-      { error: "Solo puedes eliminar tus propios eventos" },
-      { status: 403 }
-    )
-  }
-
   await prisma.event.delete({ where: { id: params.id } })
 
   return NextResponse.json({ success: true })

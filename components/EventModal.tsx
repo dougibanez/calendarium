@@ -262,7 +262,7 @@ export default function EventModal({
             </div>
 
             <div className="flex gap-3 pt-2">
-              {isOwner ? (
+              {session ? (
                 <>
                   <button
                     onClick={handleDelete}
