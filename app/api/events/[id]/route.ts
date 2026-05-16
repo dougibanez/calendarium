@@ -22,7 +22,7 @@ export async function DELETE(
 
   if (event.userId !== session.user.id) {
     return NextResponse.json(
-      { error: "Solo podés eliminar tus propios eventos" },
+      { error: "Solo puedes eliminar tus propios eventos" },
       { status: 403 }
     )
   }

@@ -364,7 +364,7 @@ export default function Calendar() {
 
       {!session && (
         <p className="text-center text-sm text-slate-400 mt-4">
-          Iniciá sesión para agregar eventos al calendario
+          Inicia sesión para agregar eventos al calendario
         </p>
       )}
 

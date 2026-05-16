@@ -46,7 +46,7 @@ export default function SignIn() {
           Calendario Familiar
         </h2>
         <p className="text-slate-500 mb-8 text-base leading-relaxed">
-          Compartí la agenda con tu familia. Cada miembro tiene su propio color.
+          Comparte la agenda con tu familia. Cada miembro tiene su propio color.
         </p>
 
         <form
@@ -55,7 +55,7 @@ export default function SignIn() {
         >
           <div className="text-left">
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              ¿Cómo te llamás?
+              ¿Cómo te llamas?
             </label>
             <input
               type="text"
