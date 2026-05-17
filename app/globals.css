@@ -4,4 +4,9 @@
 
 html {
   scroll-behavior: smooth;
+  touch-action: manipulation;
+}
+
+body {
+  touch-action: manipulation;
 }
