@@ -35,16 +35,15 @@ model Session {
 }
 
 model User {
-  id            String        @id @default(cuid())
+  id            String    @id @default(cuid())
   name          String?
-  email         String?       @unique
+  email         String?   @unique
   emailVerified DateTime?
   image         String?
   color         String?
   accounts      Account[]
   sessions      Session[]
   events        Event[]
-  matchboxCars  MatchboxCar[]
 }
 
 model VerificationToken {
@@ -67,21 +66,4 @@ model Event {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-}
-
-model MatchboxCar {
-  id         String    @id @default(cuid())
-  name       String
-  year       Int?
-  series     String?
-  color      String?
-  condition  String    @default("Good")
-  imageUrl   String?
-  notes      String?
-  price      Float?
-  acquiredAt DateTime?
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
 }
