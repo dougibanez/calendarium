@@ -187,6 +187,14 @@ export default function Calendar() {
           <h2 className="text-xl font-bold text-slate-900 capitalize">
             {format(currentDate, "MMMM yyyy", { locale: es })}
           </h2>
+          {!isToday(currentDate) && (
+            <button
+              onClick={() => setCurrentDate(new Date())}
+              className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors font-medium"
+            >
+              Hoy
+            </button>
+          )}
           {loading && (
             <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
           )}
