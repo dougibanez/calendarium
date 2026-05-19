@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
   format,
   startOfMonth,
@@ -106,6 +106,8 @@ export default function Calendar() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<"create" | "view">("create")
+  const touchStartY = useRef<number | null>(null)
+  const wheelCooldown = useRef(false)
 
   const fetchEvents = useCallback(async () => {
     setLoading(true)
@@ -169,8 +171,33 @@ export default function Calendar() {
   const getDaySingleEvents = (day: Date) =>
     singleDayEvents.filter((ev) => isSameDay(new Date(ev.startDate), day))
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isModalOpen) return
+    touchStartY.current = e.touches[0].clientY
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (isModalOpen || touchStartY.current === null) return
+    const delta = touchStartY.current - e.changedTouches[0].clientY
+    if (Math.abs(delta) < 60) return
+    setCurrentDate(delta > 0 ? addMonths(currentDate, 1) : subMonths(currentDate, 1))
+    touchStartY.current = null
+  }
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (isModalOpen || wheelCooldown.current) return
+    setCurrentDate(e.deltaY > 0 ? addMonths(currentDate, 1) : subMonths(currentDate, 1))
+    wheelCooldown.current = true
+    setTimeout(() => { wheelCooldown.current = false }, 600)
+  }
+
   return (
-    <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
+    <main
+      className="flex-1 max-w-6xl mx-auto w-full px-4 py-6"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onWheel={handleWheel}
+    >
       {/* Month navigation */}
       <div className="flex items-center justify-between mb-6">
         <button
